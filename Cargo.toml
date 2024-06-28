@@ -1,0 +1,13 @@
+[package]
+name = "kouhia"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.86"
+clap = { version = "4.5.7", features = ["derive", "string"] }
+home = "0.5.9"
+include_dir = "0.7.4"
+lazy_static = "1.5.0"
+rusqlite = { version = "0.31.0", features = ["bundled"] }
+rusqlite_migration = { version = "1.2.0", features = ["from-directory"] }
