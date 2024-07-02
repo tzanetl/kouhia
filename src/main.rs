@@ -7,8 +7,9 @@ use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
 use rusqlite::Connection;
 use rusqlite_migration::{Migrations, SchemaVersion};
+use rust_decimal::Decimal;
 
-const MIGRATIONS_VERSION: NonZeroUsize = unsafe {NonZeroUsize::new_unchecked(1)};
+const MIGRATIONS_VERSION: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(1) };
 static MIGRATIONS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/migrations");
 lazy_static! {
     static ref MIGRATIONS: Migrations<'static> =
@@ -26,7 +27,11 @@ fn default_db_path() -> PathBuf {
 }
 
 #[derive(Parser)]
-#[command(version, about="Log your work hour balance.", arg_required_else_help = true)]
+#[command(
+    version,
+    about = "Log your work hour balance.",
+    arg_required_else_help = true
+)]
 struct Cli {
     /// Path to database
     #[arg(long, default_value = default_db_path().into_os_string())]
@@ -46,7 +51,7 @@ enum Commands {
         /// Entry date, "now" or YYYY-MM-DD
         date: String,
         /// Hour amount
-        time: f32
+        time: Decimal,
     },
 }
 
@@ -67,14 +72,18 @@ fn schema(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-fn add(conn: &Connection, date: &str, time: f32) -> Result<()> {
-    dbg!(date);
-    dbg!(time);
-    let date_naive = match date {
-        "now" => chrono::offset::Local::now().date_naive(),
-        _ => chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")?,
+fn add(conn: &Connection, date: &str, time: Decimal) -> Result<()> {
+    let date_naive = if date == "now" {
+        chrono::offset::Local::now().date_naive()
+    } else {
+        chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")?
     };
-    dbg!(date_naive);
+
+    let date_string = date_naive.format("%Y-%m-%d").to_string();
+    conn.execute(
+        "INSERT INTO hours (date, time, deleted) VALUES (?1, ?2, 0)",
+        (&date_string, time.to_string()),
+    )?;
     Ok(())
 }
 
