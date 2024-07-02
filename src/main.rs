@@ -1,7 +1,7 @@
 use std::{num::NonZeroUsize, path::PathBuf};
 
 use anyhow::{anyhow, Result};
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use home::home_dir;
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
@@ -53,6 +53,25 @@ enum Commands {
         /// Hour amount
         time: Decimal,
     },
+    /// Tail latest database entries
+    Tail(TailArgs),
+}
+
+#[derive(Subcommand, PartialEq)]
+enum TailCommands {
+    /// Database entries
+    Entry,
+    // /// Concatenated dates
+    // Date,
+}
+
+#[derive(Args, PartialEq)]
+struct TailArgs {
+    /// Maximum number of entries to show
+    #[arg(default_value = "10", short)]
+    n: usize,
+    #[command(subcommand)]
+    command: TailCommands,
 }
 
 fn migrate(conn: &mut Connection) -> Result<()> {
@@ -87,6 +106,16 @@ fn add(conn: &Connection, date: &str, time: Decimal) -> Result<()> {
     Ok(())
 }
 
+fn tail_entry(n: usize) -> Result<()> {
+    todo!()
+}
+
+fn tail(tail_args: TailArgs) -> Result<()> {
+    match tail_args.command {
+        TailCommands::Entry => tail_entry(tail_args.n),
+    }
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -106,6 +135,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Add { date, time } => add(&conn, &date, time)?,
+        Commands::Tail(tail_args) => tail(tail_args)?,
         _ => (),
     }
 
