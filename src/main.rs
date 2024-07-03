@@ -55,6 +55,8 @@ enum Commands {
     },
     /// Tail latest database entries
     Tail(TailArgs),
+    /// Print out current hour balance
+    Balance,
 }
 
 #[derive(Subcommand, PartialEq)]
@@ -116,6 +118,14 @@ fn tail(tail_args: TailArgs) -> Result<()> {
     }
 }
 
+fn balance(conn: &Connection) -> Result<()> {
+    let time: f64 = conn.query_row("SELECT TOTAL(time) FROM hours WHERE deleted = 0", (), |r| {
+        r.get(0)
+    })?;
+    println!("Total hour balance: {:.1}", time);
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -136,6 +146,7 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::Add { date, time } => add(&conn, &date, time)?,
         Commands::Tail(tail_args) => tail(tail_args)?,
+        Commands::Balance => balance(&conn)?,
         _ => (),
     }
 
