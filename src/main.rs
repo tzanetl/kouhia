@@ -1,6 +1,7 @@
-use std::{num::NonZeroUsize, path::PathBuf};
+use std::{cmp::max, collections::HashSet, num::NonZeroUsize, path::PathBuf};
 
 use anyhow::{anyhow, Result};
+use chrono::NaiveDate;
 use clap::{Args, Parser, Subcommand};
 use home::home_dir;
 use include_dir::{include_dir, Dir};
@@ -26,6 +27,14 @@ fn default_db_path() -> PathBuf {
     path
 }
 
+fn parse_date(date: &str) -> Result<NaiveDate> {
+    if date == "now" {
+        Ok(chrono::offset::Local::now().date_naive())
+    } else {
+        Ok(NaiveDate::parse_from_str(date, "%Y-%m-%d")?)
+    }
+}
+
 #[derive(Parser)]
 #[command(
     version,
@@ -49,14 +58,26 @@ enum Commands {
     /// Add new entry
     Add {
         /// Entry date, "now" or YYYY-MM-DD
-        date: String,
+        #[arg(value_parser = parse_date)]
+        date: NaiveDate,
         /// Hour amount
         time: Decimal,
     },
+    /// Delete database items
+    Delete(DeleteArgs),
     /// Tail latest database entries
     Tail(TailArgs),
     /// Print out current hour balance
     Balance,
+}
+
+#[derive(Args, PartialEq)]
+struct AddArgs {
+    /// Entry date, "now" or YYYY-MM-DD
+    #[arg(value_parser = parse_date)]
+    date: NaiveDate,
+    /// Hour amount
+    time: Decimal,
 }
 
 #[derive(Subcommand, PartialEq)]
@@ -76,6 +97,23 @@ struct TailArgs {
     command: TailCommands,
 }
 
+#[derive(Args, Debug, PartialEq)]
+struct DeleteArgs {
+    #[clap(flatten)]
+    select: DBSelectGroup,
+}
+
+#[derive(Args, Clone, Debug, PartialEq)]
+#[group(required = true, multiple = false)]
+struct DBSelectGroup {
+    /// Select by database entry id
+    #[arg(short, num_args = 1..)]
+    id: Option<Vec<usize>>,
+    /// Select by date
+    #[arg(short, num_args = 1.., value_parser = parse_date)]
+    date: Option<Vec<NaiveDate>>,
+}
+
 fn migrate(conn: &mut Connection) -> Result<()> {
     MIGRATIONS.to_latest(conn)?;
     Ok(())
@@ -88,19 +126,25 @@ fn schema(conn: &Connection) -> Result<()> {
         SchemaVersion::Inside(v) => v.to_string(),
         SchemaVersion::Outside(v) => v.to_string(),
     };
-    println!("Database schema version:  {}", &version_str);
-    println!("Latest available version: {}", &MIGRATIONS_VERSION);
+    let indent = max(
+        version_str.chars().count(),
+        MIGRATIONS_VERSION.to_string().chars().count(),
+    );
+    println!(
+        "Database schema version:  {:>indent$}",
+        &version_str,
+        indent = indent
+    );
+    println!(
+        "Latest available version: {:>indent$}",
+        &MIGRATIONS_VERSION,
+        indent = indent
+    );
     Ok(())
 }
 
-fn add(conn: &Connection, date: &str, time: Decimal) -> Result<()> {
-    let date_naive = if date == "now" {
-        chrono::offset::Local::now().date_naive()
-    } else {
-        chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")?
-    };
-
-    let date_string = date_naive.format("%Y-%m-%d").to_string();
+fn add(conn: &Connection, date: NaiveDate, time: Decimal) -> Result<()> {
+    let date_string = date.format("%Y-%m-%d").to_string();
     conn.execute(
         "INSERT INTO hours (date, time, deleted) VALUES (?1, ?2, 0)",
         (&date_string, time.to_string()),
@@ -145,6 +189,28 @@ fn balance(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+fn delete_entry(conn: &Connection, ids: HashSet<usize>) -> Result<()> {
+    todo!()
+}
+
+fn delete_date(conn: &Connection, dates: HashSet<NaiveDate>) -> Result<()> {
+    todo!()
+}
+
+fn delete(conn: &Connection, delete_args: DeleteArgs) -> Result<()> {
+    dbg!(&delete_args);
+    if let Some(ids) = delete_args.select.id {
+        let ids_set = HashSet::from_iter(ids.into_iter());
+        delete_entry(conn, ids_set)?;
+    } else if let Some(dates) = delete_args.select.date {
+        let dates_set = HashSet::from_iter(dates.into_iter());
+        delete_date(conn, dates_set)?;
+    } else {
+        return Err(anyhow!("no selector"));
+    }
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -163,9 +229,10 @@ fn main() -> Result<()> {
     }
 
     match cli.command {
-        Commands::Add { date, time } => add(&conn, &date, time)?,
+        Commands::Add { date, time } => add(&conn, date, time)?,
         Commands::Tail(tail_args) => tail(&conn, tail_args)?,
         Commands::Balance => balance(&conn)?,
+        Commands::Delete(delete_args) => delete(&conn, delete_args)?,
         _ => (),
     }
 
