@@ -108,13 +108,32 @@ fn add(conn: &Connection, date: &str, time: Decimal) -> Result<()> {
     Ok(())
 }
 
-fn tail_entry(n: usize) -> Result<()> {
-    todo!()
+fn tail_entry(conn: &Connection, n: usize) -> Result<()> {
+    let mut statement = conn.prepare(&format!(
+        "SELECT entry_id, date, time FROM hours WHERE deleted = 0 ORDER BY entry_id DESC LIMIT {}",
+        n
+    ))?;
+
+    let entry_iter = statement.query_map([], |row| {
+        Ok((
+            row.get::<usize, usize>(0)?,
+            row.get::<usize, String>(1)?,
+            row.get::<usize, f64>(2)?,
+        ))
+    })?;
+
+    println!("{:>10} {:>10} {:>10}", "ID", "Date", "Time");
+    for entry in entry_iter {
+        let (entry_id, date, time) = entry.expect("failed to read row");
+        println!("{:>10} {:>10} {:>10.1}", entry_id, date, time);
+    }
+
+    Ok(())
 }
 
-fn tail(tail_args: TailArgs) -> Result<()> {
+fn tail(conn: &Connection, tail_args: TailArgs) -> Result<()> {
     match tail_args.command {
-        TailCommands::Entry => tail_entry(tail_args.n),
+        TailCommands::Entry => tail_entry(conn, tail_args.n),
     }
 }
 
@@ -145,7 +164,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Add { date, time } => add(&conn, &date, time)?,
-        Commands::Tail(tail_args) => tail(tail_args)?,
+        Commands::Tail(tail_args) => tail(&conn, tail_args)?,
         Commands::Balance => balance(&conn)?,
         _ => (),
     }
