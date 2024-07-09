@@ -17,6 +17,8 @@ lazy_static! {
         Migrations::from_directory(&MIGRATIONS_DIR).unwrap();
 }
 
+const DATE_FORMAT: &'static str = "%Y-%m-%d";
+
 fn default_db_path() -> PathBuf {
     let mut path = home_dir().expect("unable to get home directory");
     path.push(".kouhia");
@@ -31,7 +33,7 @@ fn parse_date(date: &str) -> Result<NaiveDate> {
     if date == "now" {
         Ok(chrono::offset::Local::now().date_naive())
     } else {
-        Ok(NaiveDate::parse_from_str(date, "%Y-%m-%d")?)
+        Ok(NaiveDate::parse_from_str(date, DATE_FORMAT)?)
     }
 }
 
@@ -61,6 +63,7 @@ enum Commands {
         #[arg(value_parser = parse_date)]
         date: NaiveDate,
         /// Hour amount
+        #[arg(allow_negative_numbers = true)]
         time: Decimal,
     },
     /// Delete database items
@@ -69,15 +72,6 @@ enum Commands {
     Tail(TailArgs),
     /// Print out current hour balance
     Balance,
-}
-
-#[derive(Args, PartialEq)]
-struct AddArgs {
-    /// Entry date, "now" or YYYY-MM-DD
-    #[arg(value_parser = parse_date)]
-    date: NaiveDate,
-    /// Hour amount
-    time: Decimal,
 }
 
 #[derive(Subcommand, PartialEq)]
