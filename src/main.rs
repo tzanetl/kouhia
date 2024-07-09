@@ -108,7 +108,7 @@ struct DeleteArgs {
 struct DBSelectGroup {
     /// Select by database entry id
     #[arg(short, num_args = 1..)]
-    id: Option<Vec<usize>>,
+    entry: Option<Vec<usize>>,
     /// Select by date
     #[arg(short, num_args = 1.., value_parser = parse_date)]
     date: Option<Vec<NaiveDate>>,
@@ -189,18 +189,25 @@ fn balance(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-fn delete_entry(conn: &Connection, ids: HashSet<usize>) -> Result<()> {
+fn delete_entry(conn: &mut Connection, ids: HashSet<usize>) -> Result<()> {
+    let tx = conn.transaction()?;
+    {
+        let mut statement = tx.prepare("UPDATE hours SET deleted = 1 WHERE entry_id = ?1")?;
+        for i in ids {
+            statement.execute([i])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+fn delete_date(conn: &mut Connection, dates: HashSet<NaiveDate>) -> Result<()> {
     todo!()
 }
 
-fn delete_date(conn: &Connection, dates: HashSet<NaiveDate>) -> Result<()> {
-    todo!()
-}
-
-fn delete(conn: &Connection, delete_args: DeleteArgs) -> Result<()> {
-    dbg!(&delete_args);
-    if let Some(ids) = delete_args.select.id {
-        let ids_set = HashSet::from_iter(ids.into_iter());
+fn delete(conn: &mut Connection, delete_args: DeleteArgs) -> Result<()> {
+    if let Some(entry_ids) = delete_args.select.entry {
+        let ids_set = HashSet::from_iter(entry_ids.into_iter());
         delete_entry(conn, ids_set)?;
     } else if let Some(dates) = delete_args.select.date {
         let dates_set = HashSet::from_iter(dates.into_iter());
@@ -232,7 +239,7 @@ fn main() -> Result<()> {
         Commands::Add { date, time } => add(&conn, date, time)?,
         Commands::Tail(tail_args) => tail(&conn, tail_args)?,
         Commands::Balance => balance(&conn)?,
-        Commands::Delete(delete_args) => delete(&conn, delete_args)?,
+        Commands::Delete(delete_args) => delete(&mut conn, delete_args)?,
         _ => (),
     }
 
