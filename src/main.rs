@@ -196,7 +196,15 @@ fn delete_entry(conn: &mut Connection, ids: HashSet<usize>) -> Result<()> {
 }
 
 fn delete_date(conn: &mut Connection, dates: HashSet<NaiveDate>) -> Result<()> {
-    todo!()
+    let tx = conn.transaction()?;
+    {
+        let mut statement = tx.prepare("UPDATE hours SET deleted = 1 WHERE date = ?1")?;
+        for d in dates {
+            statement.execute([d.format(&DATE_FORMAT).to_string()])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
 }
 
 fn delete(conn: &mut Connection, delete_args: DeleteArgs) -> Result<()> {
