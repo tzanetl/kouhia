@@ -1,4 +1,4 @@
-use std::{cmp::max, collections::HashSet, num::NonZeroUsize, path::PathBuf};
+use std::{cmp::max, collections::HashSet, num::NonZeroUsize, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, Result};
 use chrono::NaiveDate;
@@ -37,6 +37,14 @@ fn parse_date(date: &str) -> Result<NaiveDate> {
     }
 }
 
+fn parse_non_zero(d: &str) -> Result<Decimal> {
+    let value = Decimal::from_str(d)?;
+    if value == Decimal::from_str("0")? {
+        return Err(anyhow!("Time must be non-zero"));
+    }
+    Ok(value)
+}
+
 #[derive(Parser)]
 #[command(
     version,
@@ -63,7 +71,7 @@ enum Commands {
         #[arg(value_parser = parse_date)]
         date: NaiveDate,
         /// Hour amount
-        #[arg(allow_negative_numbers = true)]
+        #[arg(allow_negative_numbers = true, value_parser = parse_non_zero)]
         time: Decimal,
     },
     /// Delete database items
