@@ -2,7 +2,7 @@ use std::{cmp::max, collections::HashSet, num::NonZeroUsize, path::PathBuf};
 
 use anyhow::{anyhow, Result};
 use chrono::NaiveDate;
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use home::home_dir;
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
@@ -74,7 +74,7 @@ enum Commands {
     Balance,
 }
 
-#[derive(Subcommand, PartialEq)]
+#[derive(Clone, ValueEnum, PartialEq)]
 enum TailCommands {
     /// Database entries
     Entry,
@@ -87,7 +87,7 @@ struct TailArgs {
     /// Maximum number of entries to show
     #[arg(default_value = "10", short)]
     n: usize,
-    #[command(subcommand)]
+    #[arg(value_enum)]
     command: TailCommands,
 }
 
