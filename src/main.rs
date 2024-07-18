@@ -78,8 +78,8 @@ enum Commands {
 enum TailCommands {
     /// Database entries
     Entry,
-    // /// Concatenated dates
-    // Date,
+    /// Concatenated dates
+    Date,
 }
 
 #[derive(Args, PartialEq)]
@@ -169,10 +169,53 @@ fn tail_entry(conn: &Connection, n: usize) -> Result<()> {
     Ok(())
 }
 
+fn tail_date(conn: &Connection, n: usize) -> Result<()> {
+    let mut statement =
+        conn.prepare("SELECT date, time FROM hours WHERE deleted = 0 ORDER BY date DESC")?;
+    let mut rows = statement.query([])?;
+
+    let first_row = if let Some(row) = rows.next()? {
+        row
+    } else {
+        return Ok(());
+    };
+
+    let mut date = NaiveDate::parse_from_str(&first_row.get::<usize, String>(0)?, DATE_FORMAT)?;
+    let mut time_sum = first_row.get::<usize, f64>(1)?;
+
+    println!("{:>10} {:>10}", "Date", "Time");
+
+    let mut count = 1;
+
+    while let Some(row) = rows.next()? {
+        let next_date = NaiveDate::parse_from_str(&row.get::<usize, String>(0)?, DATE_FORMAT)?;
+        let next_time = row.get::<usize, f64>(1)?;
+
+        if next_date == date {
+            time_sum += next_time;
+            continue;
+        }
+
+        println!("{:>10} {:>10.1}", date.format(DATE_FORMAT), time_sum);
+        date = next_date;
+        time_sum = next_time;
+        count += 1;
+
+        if count > n {
+            return Ok(());
+        }
+    }
+    println!("{:>10} {:>10.1}", date.format(DATE_FORMAT), time_sum);
+
+    Ok(())
+}
+
 fn tail(conn: &Connection, tail_args: TailArgs) -> Result<()> {
     match tail_args.command {
-        TailCommands::Entry => tail_entry(conn, tail_args.n),
-    }
+        TailCommands::Entry => tail_entry(conn, tail_args.n)?,
+        TailCommands::Date => tail_date(conn, tail_args.n)?,
+    };
+    Ok(())
 }
 
 fn balance(conn: &Connection) -> Result<()> {
