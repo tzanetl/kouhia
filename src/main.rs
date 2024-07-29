@@ -1,4 +1,4 @@
-use std::{cmp::max, collections::HashSet, num::NonZeroUsize, path::PathBuf, str::FromStr};
+use std::{cmp::max, collections::HashSet, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, Result};
 use chrono::NaiveDate;
@@ -10,7 +10,6 @@ use rusqlite::Connection;
 use rusqlite_migration::{Migrations, SchemaVersion};
 use rust_decimal::Decimal;
 
-const MIGRATIONS_VERSION: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(1) };
 static MIGRATIONS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/migrations");
 lazy_static! {
     static ref MIGRATIONS: Migrations<'static> =
@@ -18,6 +17,8 @@ lazy_static! {
 }
 
 const DATE_FORMAT: &'static str = "%Y-%m-%d";
+
+include!(concat!(env!("OUT_DIR"), "/comp_const.rs"));
 
 fn default_db_path() -> PathBuf {
     let mut path = home_dir().expect("unable to get home directory");
