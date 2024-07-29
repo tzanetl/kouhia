@@ -6,7 +6,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use home::home_dir;
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
-use rusqlite::Connection;
+use rusqlite::{functions::FunctionFlags, Connection};
 use rusqlite_migration::{Migrations, SchemaVersion};
 use rust_decimal::Decimal;
 
@@ -28,6 +28,11 @@ fn default_db_path() -> PathBuf {
     }
     path.push("db.sqlite3");
     path
+}
+
+fn add_not_undo_function(conn: &Connection, not_undo: bool) -> Result<()> {
+    conn.create_scalar_function("not_undo", 0, FunctionFlags::empty(), move |_| Ok(not_undo))?;
+    Ok(())
 }
 
 fn parse_date(date: &str) -> Result<NaiveDate> {
@@ -81,6 +86,12 @@ enum Commands {
     Tail(TailArgs),
     /// Print out current hour balance
     Balance,
+    /// Undo previous operation
+    Undo {
+        /// Number of changes to undo
+        #[arg(default_value = "1")]
+        depth: usize,
+    },
 }
 
 #[derive(Clone, ValueEnum, PartialEq)]
@@ -272,6 +283,11 @@ fn delete(conn: &mut Connection, delete_args: DeleteArgs) -> Result<()> {
     Ok(())
 }
 
+fn undo(conn: &Connection, depth: usize) -> Result<()> {
+    dbg!(&depth);
+    todo!()
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -289,12 +305,16 @@ fn main() -> Result<()> {
         return Err(anyhow!("Database is not up to date with the latest schema"));
     }
 
+    add_not_undo_function(&conn, !(matches!(cli.command, Commands::Undo { depth: _ })))?;
+
     match cli.command {
+        Commands::Migrate => todo!(),
+        Commands::Schema => todo!(),
         Commands::Add { date, time } => add(&conn, date, time)?,
         Commands::Tail(tail_args) => tail(&conn, tail_args)?,
         Commands::Balance => balance(&conn)?,
         Commands::Delete(delete_args) => delete(&mut conn, delete_args)?,
-        _ => (),
+        Commands::Undo { depth } => undo(&conn, depth)?,
     }
 
     Ok(())
