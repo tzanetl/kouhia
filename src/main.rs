@@ -283,9 +283,39 @@ fn delete(conn: &mut Connection, delete_args: DeleteArgs) -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug)]
+struct UndoRow {
+    row_id: usize,
+    entry_id: usize,
+    deleted_old: bool,
+    processed: bool,
+}
+
 fn undo(conn: &Connection, depth: usize) -> Result<()> {
     dbg!(&depth);
-    todo!()
+    let mut statement = conn
+        .prepare("SELECT row_id, entry_id, deleted_old, processed FROM undolog ORDER BY row_id")?;
+    let mut rows = statement.query_map([], |row| {
+        Ok(UndoRow {
+            row_id: row.get(0)?,
+            entry_id: row.get(1)?,
+            deleted_old: row.get(2)?,
+            processed: row.get(3)?,
+        })
+    })?;
+
+    let mut first_found = false;
+
+    while let Some(row) = rows.next() {
+        let row = row?;
+        dbg!(&row);
+
+        if row.processed == false {
+            first_found = true
+        }
+    }
+
+    Ok(())
 }
 
 fn main() -> Result<()> {
