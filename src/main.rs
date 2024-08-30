@@ -292,9 +292,9 @@ struct UndoRow {
 }
 
 fn undo(conn: &Connection, depth: usize) -> Result<()> {
-    dbg!(&depth);
-    let mut statement = conn
-        .prepare("SELECT row_id, entry_id, deleted_old, processed FROM undolog ORDER BY row_id")?;
+    let mut statement = conn.prepare(
+        "SELECT row_id, entry_id, deleted_old, processed FROM undolog ORDER BY row_id DESC",
+    )?;
     let mut rows = statement.query_map([], |row| {
         Ok(UndoRow {
             row_id: row.get(0)?,
@@ -305,14 +305,37 @@ fn undo(conn: &Connection, depth: usize) -> Result<()> {
     })?;
 
     let mut first_found = false;
+    let mut count = 0;
 
     while let Some(row) = rows.next() {
+        if count >= depth {
+            return Ok(());
+        }
         let row = row?;
-        dbg!(&row);
 
         if row.processed == false {
             first_found = true
         }
+
+        if first_found == true && row.processed == true {
+            break;
+        }
+        let _ = conn.execute("DROP TRIGGER undolog_processed;", ());
+        conn.execute(
+            format!(
+                "CREATE TEMP TRIGGER undolog_processed AFTER UPDATE ON hours BEGIN
+                    UPDATE undolog SET processed = 1 WHERE row_id = {};
+                END;",
+                row.row_id
+            )
+            .as_str(),
+            (),
+        )?;
+        conn.execute(
+            "UPDATE hours SET deleted = ?1 WHERE entry_id = ?2",
+            (row.deleted_old, row.entry_id),
+        )?;
+        count += 1;
     }
 
     Ok(())
